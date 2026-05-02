@@ -1,0 +1,35 @@
+name: Daily Data Update
+
+on:
+  schedule:
+    # Run daily at 6:00 AM BST (00:00 UTC)
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run data update
+        env:
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+        run: python scripts/update_data.py
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "BD.LIVE Bot"
+          git config user.email "bot@bd-live.dev"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "📊 Daily data update — $(date -u '+%Y-%m-%d')"
+            git push
+          fi
