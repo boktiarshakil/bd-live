@@ -126,6 +126,24 @@ footer .flag span{width:24px;height:3px;border-radius:2px}
 .badge-gold{background:rgba(255,215,0,0.15);color:var(--gold)}
 .loading{text-align:center;padding:40px;opacity:0.4;font-size:0.9rem}
 .tooltip{position:absolute;background:rgba(15,15,26,0.95);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:0.8rem;pointer-events:none;z-index:9999;max-width:250px}
+
+/* WEATHER */
+.weather-controls{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px}
+.weather-controls select{background:var(--card);border:1px solid var(--border);color:#e0e0e0;padding:8px 14px;border-radius:8px;font-size:0.85rem;cursor:pointer;outline:none}
+.weather-last-updated{font-size:0.75rem;opacity:0.5}
+.weather-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.weather-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;transition:transform 0.2s,border-color 0.2s}
+.weather-card:hover{transform:translateY(-2px);border-color:var(--gold)}
+.weather-card .city-name{font-size:0.95rem;font-weight:700;color:#fff;margin-bottom:4px}
+.weather-card .city-name small{display:block;font-weight:400;opacity:0.5;font-size:0.7rem;margin-top:2px}
+.weather-card .temp-row{display:flex;align-items:center;gap:10px;margin:10px 0}
+.weather-card .temp{font-size:2rem;font-weight:900;color:var(--gold);line-height:1}
+.weather-card .temp sup{font-size:0.9rem;font-weight:400}
+.weather-card .desc{font-size:0.8rem;opacity:0.7;text-transform:capitalize}
+.weather-card .weather-details{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.weather-card .weather-details div{font-size:0.7rem;opacity:0.6}
+.weather-card .weather-details div span{font-weight:600;color:#ccc}
+.weather-icon{font-size:2.5rem;line-height:1}
 </style>
 </head>
 <body>
@@ -138,6 +156,7 @@ footer .flag span{width:24px;height:3px;border-radius:2px}
     <li><a href="#location">Explore</a></li>
     <li><a href="#services">Services</a></li>
     <li><a href="#data">Data</a></li>
+    <li><a href="#weather">Weather</a></li>
   </ul>
 </nav>
 
@@ -240,6 +259,24 @@ footer .flag span{width:24px;height:3px;border-radius:2px}
   <div class="datasets-grid" id="datasets-grid"></div>
 </section>
 
+<!-- WEATHER -->
+<section class="section" id="weather">
+  <div class="section-header">
+    <h2>🌤️ Live Weather</h2>
+    <div class="line"></div>
+    <p>Real-time weather data for 20 major cities across Bangladesh — updated daily</p>
+  </div>
+  <div class="weather-controls">
+    <select id="weather-sort" onchange="renderWeather()">
+      <option value="name">Sort by City</option>
+      <option value="temp">Sort by Temperature</option>
+      <option value="humidity">Sort by Humidity</option>
+    </select>
+    <span class="weather-last-updated" id="weather-updated"></span>
+  </div>
+  <div class="weather-grid" id="weather-grid"></div>
+</section>
+
 <!-- FOOTER -->
 <footer>
   <div class="flag">
@@ -248,7 +285,7 @@ footer .flag span{width:24px;height:3px;border-radius:2px}
     <span style="background:#FFD700"></span>
   </div>
   <p>BD.LIVE — Made with open data for Bangladesh</p>
-  <p style="margin-top:6px">Data: BD APIs • WFP HDX • data.gov.bd • Natural Earth</p>
+  <p style="margin-top:6px">Data: BD APIs • WFP HDX • OpenWeatherMap • data.gov.bd • Natural Earth</p>
   <p style="margin-top:6px">বাংলাদেশ 🇧🇩</p>
 </footer>
 
@@ -559,6 +596,60 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('scroll', () => {
     document.querySelector('nav').style.background = window.scrollY > 80 ? 'rgba(15,15,26,0.96)' : 'rgba(15,15,26,0.92)';
   });
+
+  // ============ WEATHER ============
+  const WEATHER_DATA = [];
+  const weatherIcons = {
+    '01d':'☀️','01n':'🌙','02d':'⛅','02n':'☁️','03d':'☁️','03n':'☁️',
+    '04d':'☁️','04n':'☁️','09d':'🌧️','09n':'🌧️','10d':'🌦️','10n':'🌧️',
+    '11d':'⛈️','11n':'⛈️','13d':'🌨️','13n':'🌨️','50d':'🌫️','50n':'🌫️'
+  };
+
+  function loadWeatherData() {
+    fetch('data/weather.json?t=' + Date.now())
+      .then(r => r.json())
+      .then(data => {
+        WEATHER_DATA.length = 0;
+        WEATHER_DATA.push(...data);
+        const updated = data.length > 0 ? new Date(data[0].updated * 1000).toLocaleString() : 'N/A';
+        document.getElementById('weather-updated').textContent = 'Last updated: ' + updated;
+        renderWeather();
+      })
+      .catch(() => {
+        document.getElementById('weather-grid').innerHTML = '<div class="loading">Weather data unavailable</div>';
+      });
+  }
+
+  function renderWeather() {
+    const sort = document.getElementById('weather-sort').value;
+    const sorted = [...WEATHER_DATA].sort((a, b) => {
+      if (sort === 'temp') return b.temp - a.temp;
+      if (sort === 'humidity') return b.humidity - a.humidity;
+      return a.city.localeCompare(b.city);
+    });
+
+    const html = sorted.map(w => {
+      const icon = weatherIcons[w.icon] || '🌡️';
+      return `<div class="weather-card">
+        <div class="city-name">${w.city}<small>${w.lat.toFixed(2)}°N, ${w.lon.toFixed(2)}°E</small></div>
+        <div class="temp-row">
+          <span class="weather-icon">${icon}</span>
+          <span class="temp">${w.temp}<sup>°C</sup></span>
+        </div>
+        <div class="desc">${w.desc}</div>
+        <div class="weather-details">
+          <div>Feels like: <span>${w.feels_like}°C</span></div>
+          <div>Humidity: <span>${w.humidity}%</span></div>
+          <div>Wind: <span>${w.wind} m/s</span></div>
+          <div>Pressure: <span>${w.pressure} hPa</span></div>
+        </div>
+      </div>`;
+    }).join('');
+
+    document.getElementById('weather-grid').innerHTML = html;
+  }
+
+  loadWeatherData();
 });
 </script>
 </body>
